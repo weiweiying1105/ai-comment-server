@@ -23,7 +23,7 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=80
+ENV PORT=8000
 
 RUN apk add --no-cache openssl libc6-compat
 
@@ -32,7 +32,7 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 
-EXPOSE 80
+EXPOSE 8000
 
 # Standalone build provides server.js entrypoint
 CMD ["node", "server.js"]
