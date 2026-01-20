@@ -2,19 +2,46 @@ import { NextResponse, NextRequest } from "next/server";
 import { createJsonResponse, ResponseUtil } from "@/lib/response";
 import { verifyToken } from "@/utils/jwt";
 import prisma from "@/lib/prisma";
+import { normalizeTone, ToneKey } from "@/utils/aiText";
 
 export const dynamic = "force-dynamic"
 
-function buildPrompt(categoryName: string, words: number, reference?: string,tone?:string): string {
-    return `请根据以下信息写一段大众点评风格的走心好评文案，约 ${words} 字左右。
+function buildPrompt(
+    categoryName: string,
+    words: number,
+    reference?: string,
+    toneKey?: ToneKey | string
+): string {
+    const toneDesc = normalizeTone(toneKey);
+
+    return `你是一名资深大众点评老用户，请根据以下信息写一段走心好评文案，约 ${words} 字左右。
+
+【语气要求（最重要）】
+${toneDesc}
+
+【基础信息】
 - 关键词/主题/分类：${categoryName}
-- 语气要求：${tone || '正常'}
-- 重中之重：必须严格遵循指定语气！不要写具体的产品。多模拟客户感受，可以多写服务，环境，口味，性价比等。内容要完整，不要省略和缺失。
-- 要求：要贴地气，语言自然真实、包含具体细节（环境/服务/口味/性价比）， 如果关键词是大分类，就不要生成具体产品的内容了。就写的通用一点。不使用Emoji，避免夸张词与空洞形容。
-- 比如：1) 场景与店铺亮点; 2) 具体体验细节; 3) 推荐菜/项目与理由; 4) 适合人群与小建议; 5) 温暖结尾与轻微召唤。等等，取一部分或者都取。
 - 参考文案：${reference || '无'}
-只输出成品文案。`
+
+【内容要求】
+1. 贴地气，语言自然真实，像真实用户写的好评，不要像广告。
+2. 尽量包含具体细节（环境、服务、口味、性价比等），让人能“脑补出画面”。
+3. 如果关键词是大分类（如“美食”“亲子”“旅游/出行”等），不要出现具体菜名或特别细的项目，只写通用体验。
+4. 可以参考以下结构自由发挥（不必全部使用）：
+   - 场景与店铺亮点
+   - 具体体验细节
+   - 推荐的菜/项目以及推荐理由（如果合适）
+   - 适合的人群和小建议
+   - 温暖结尾或轻微安利
+
+【限制】
+- 不使用 Emoji。
+- 避免特别夸张和空洞的形容（如“超级无敌”“一生推”“YYDS”等）。
+- 不要输出条目列表或小标题，只输出一整段自然连贯的中文好评。
+
+现在请按照以上要求，直接输出最终成品文案，不要添加任何额外说明。`;
 }
+
 
 
 export async function POST(request: NextRequest) {
@@ -26,7 +53,15 @@ export async function POST(request: NextRequest) {
                 { status: 401 }
             );
         }
-        const { categoryName, categoryId, words, reference,tone } = await request.json();
+        // 额外保证：token对应的用户必须存在（避免数据库重置后token失效导致外键错误）
+        const dbUser = await prisma.user.findUnique({ where: { id: user.userId } })
+        if (!dbUser) {
+            return createJsonResponse(
+                ResponseUtil.error('用户不存在或已失效，请重新登录'),
+                { status: 401 }
+            );
+        }
+        const { categoryName, categoryId, words, reference, tone } = await request.json();
         if (!categoryName || !categoryId || !words || typeof categoryName !== 'string' || typeof categoryId !== 'number' || typeof words !== 'number') {
             return createJsonResponse(
                 ResponseUtil.error('参数错误'),
@@ -51,7 +86,7 @@ export async function POST(request: NextRequest) {
                     content:
                         '你是资深大众点评文案策划，擅长写真实、具体、有温度的好评文案，能够根据不同需求调整语气风格。输出纯文本，不要解释，不要加前后引号。',
                 },
-                { role: 'user', content: buildPrompt(categoryName, targetWords, reference ?? '',tone??'') },
+                { role: 'user', content: buildPrompt(categoryName, targetWords, reference ?? '无', tone ?? '正常') },
             ],
             temperature: 0.85, // 增加温度值以获得更有创意和多样化的语气表达
             // 将“字数”近似为 token 数上限；中文字符与 token 接近，英文粗略按 2 倍处理
@@ -120,6 +155,13 @@ export async function GET(request: NextRequest) {
         if (!user) {
             return createJsonResponse(
                 ResponseUtil.error('未授权访问'),
+                { status: 401 }
+            );
+        }
+        const dbUser = await prisma.user.findUnique({ where: { id: user.userId } })
+        if (!dbUser) {
+            return createJsonResponse(
+                ResponseUtil.error('用户不存在或已失效，请重新登录'),
                 { status: 401 }
             );
         }
@@ -199,6 +241,13 @@ export async function PUT(request: NextRequest) {
         if (!user) {
             return createJsonResponse(
                 ResponseUtil.error('未授权访问'),
+                { status: 401 }
+            );
+        }
+        const dbUser = await prisma.user.findUnique({ where: { id: user.userId } })
+        if (!dbUser) {
+            return createJsonResponse(
+                ResponseUtil.error('用户不存在或已失效，请重新登录'),
                 { status: 401 }
             );
         }

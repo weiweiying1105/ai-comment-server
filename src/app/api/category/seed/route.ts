@@ -36,24 +36,45 @@ async function upsertCategory(
 type CategoryInput = Category & { active_icon?: string; children?: CategoryInput[] }
 
 async function loadCategoriesFromFile(fileName: string): Promise<CategoryInput[]> {
-  const publicDir = path.join(process.cwd(), 'public')
-  const primaryPath = path.join(publicDir, fileName)
-  const fallbackPath = path.join(publicDir, 'category-snapshot.json')
+  // 支持绝对路径、seed 目录、public 目录与 src/data 目录，以及 src/app/api/category/seed 目录
+  const candidates: string[] = []
+  if (path.isAbsolute(fileName)) {
+    candidates.push(fileName)
+  } else {
+    candidates.push(
+      path.join(process.cwd(), 'seed', fileName),
+      path.join(process.cwd(), 'public', fileName),
+      path.join(process.cwd(), 'src', 'data', fileName),
+      path.join(process.cwd(), 'src', 'app', 'api', 'category', 'seed', fileName),
+    )
+  }
+
+  // 回退快照（优先 public，再尝试 src/data）
+  const fallbackCandidates = [
+    path.join(process.cwd(), 'public', 'category-snapshot.json'),
+    path.join(process.cwd(), 'src', 'data', 'category-snapshot.json'),
+  ]
 
   let jsonText: string | null = null
-  try {
-    jsonText = await fs.readFile(primaryPath, 'utf-8')
-  } catch (ePrimary) {
-    if (fileName !== 'category-snapshot.json') {
+  for (const p of candidates) {
+    try {
+      jsonText = await fs.readFile(p, 'utf-8')
+      break
+    } catch (_) { /* try next */ }
+  }
+
+  if (!jsonText) {
+    for (const fp of fallbackCandidates) {
       try {
-        jsonText = await fs.readFile(fallbackPath, 'utf-8')
-        console.warn(`[Seed] 未找到 ${fileName}，使用 fallback: category-snapshot.json`)
-      } catch (eFallback) {
-        throw new Error(`无法读取分类文件：${fileName} 或 fallback 文件 category-snapshot.json。请将 JSON 放到 public 目录下。`)
-      }
-    } else {
-      throw new Error(`无法读取分类文件：${fileName}。请将 JSON 放到 public 目录下。`)
+        jsonText = await fs.readFile(fp, 'utf-8')
+        console.warn(`[Seed] 未找到 ${fileName}，使用 fallback: ${path.basename(fp)}`)
+        break
+      } catch (_) { /* try next */ }
     }
+  }
+
+  if (!jsonText) {
+    throw new Error(`无法读取分类文件：${fileName} 或 fallback 快照。请将 JSON 放到 seed/、public/、src/data/ 或 src/app/api/category/seed/ 目录下。`)
   }
 
   const raw = JSON.parse(jsonText!)
