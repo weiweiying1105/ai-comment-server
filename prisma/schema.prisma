@@ -74,3 +74,20 @@ model GoodComment {
   user User @relation(fields: [userId], references: [id])
   @@index([userId, createdAt])
 }
+
+// 图片模型
+model Image {
+  id          String   @id @default(cuid())
+  filename    String   // 文件名
+  path        String   // 文件路径
+  url         String   // 访问URL
+  size        Int      // 文件大小(字节)
+  mimeType    String   // 文件类型
+  width       Int?     // 图片宽度
+  height      Int?     // 图片高度
+  description String?  // 描述
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("images")
+}

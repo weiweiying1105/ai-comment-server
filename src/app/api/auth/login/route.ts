@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
         const wechatUrl = `https://api.weixin.qq.com/sns/jscode2session?appid=${WECHAT_CONFIG.appid}&secret=${WECHAT_CONFIG.appSecret}&js_code=${encodeURIComponent(code)}&grant_type=${WECHAT_CONFIG.grantType}`
         const wxResponse = await fetch(wechatUrl);
         const wxData: WechatLoginResponse = await wxResponse.json();
-        console.log('微信登录响应', wxData)
+        // console.log('微信登录响应', wxData)
         if (wxData.errcode) {
             return createJsonResponse(
                 ResponseUtil.error(`微信登录失败: ${wxData.errmsg}`),
