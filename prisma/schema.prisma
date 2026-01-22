@@ -77,17 +77,25 @@ model GoodComment {
 
 // 图片模型
 model Image {
-  id          String   @id @default(cuid())
-  filename    String   // 文件名
-  path        String   // 文件路径
-  url         String   // 访问URL
-  size        Int      // 文件大小(字节)
-  mimeType    String   // 文件类型
-  width       Int?     // 图片宽度
-  height      Int?     // 图片高度
-  description String?  // 描述
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(uuid())
 
-  @@map("images")
+  // 对外访问的完整 URL（你的小程序 / 前端用的）
+  url       String
+
+  // COS 中的对象 key，例如 uploads/20260122-xxx.png
+  key       String
+
+  // 业务类型：avatar / comment / banner / logo
+  bizType   String
+
+  // 关联业务 ID（比如 commentId / userId，可选）
+  ownerId   String?
+
+  // 所属桶，方便以后迁移或清理
+  bucket    String
+
+  createdAt DateTime @default(now())
+
+  @@index([bizType])
+  @@index([ownerId]) 
 }

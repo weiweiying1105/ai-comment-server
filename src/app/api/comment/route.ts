@@ -61,6 +61,14 @@ export async function POST(request: NextRequest) {
                 { status: 401 }
             );
         }
+        /**
+         * 生成评论:
+         * @param categoryName 分类名称
+         * @param categoryId 分类ID
+         * @param words 评论字数（50-800）
+         * @param reference 参考文案（可选）
+         * @param tone 语气风格（可选）
+         */
         const { categoryName, categoryId, words, reference, tone } = await request.json();
         if (!categoryName || !categoryId || !words || typeof categoryName !== 'string' || typeof categoryId !== 'number' || typeof words !== 'number') {
             return createJsonResponse(

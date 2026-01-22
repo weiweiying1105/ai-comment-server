@@ -1,116 +1,96 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile } from 'fs/promises';
-import { join } from 'path';
-import { mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
 import sharp from 'sharp'; // 这是一个 Node.js 库，用于处理图片，这里用于压缩图片
 import { PrismaClient } from '@prisma/client';
+import cos from '@/lib/cos';
+import { createJsonResponse, ResponseUtil } from '@/lib/response';
+
+// COD 只能在Node 环境跑
+export const runtime = 'nodejs';
+const BUCKET_NAME = process.env.COS_BUCKET;
+const REGION = process.env.COS_REGION;
 
 const prisma = new PrismaClient();
 
-// 确保上传目录存在
-const uploadDir = join(process.cwd(), 'public', 'uploads');
-if (!existsSync(uploadDir)) {
-  mkdir(uploadDir, { recursive: true });
+
+function putObjectToCOS (key:string,body:Buffer){
+  return new Promise((resolve, reject) => {
+    cos.putObject({
+      Bucket: BUCKET_NAME,
+      Region: REGION,
+      Key: key,
+      Body: body,
+    }, (err:any, data:any) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(data);
+      }
+    });
+  });
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-    
-    if (!file) {
-      return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
-    }
+  const formData = await req.formData();
+  const file = formData.get('file') as File;
+  if (!file || !(file instanceof File)) {
+    return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
+  }
 
-    // 验证文件类型
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ error: 'Only image files are allowed' }, { status: 400 });
-    }
+  // 读取内容
+  const arrayBuffer = await file.arrayBuffer();// 转换为 ArrayBuffer
+  const buffer = Buffer.from(arrayBuffer); // 转换为 Buffer
+  // 检查图片是否有透明度
+  const metadata = await sharp(buffer).metadata();
+  const hasAlpha = metadata.hasAlpha || false;
 
-    // 验证文件大小 (5MB 限制)
-    const maxSize = 5 * 1024 * 1024;
-    if (file.size > maxSize) {
-      return NextResponse.json({ error: 'File size exceeds 5MB limit' }, { status: 400 });
-    }
+  // 根据是否有透明度选择输出格式
+  let compressedBuffer: Buffer;
+  let outputExt = file.name.split('.').pop() || 'png';
+  
+  if (hasAlpha) {
+    // 有透明度，保持为 PNG
+    compressedBuffer = await sharp(buffer)
+      .resize(800, 600) // 调整大小
+      .png({ quality: 80 }) // 压缩为 PNG 格式
+      .toBuffer();
+    outputExt = 'png';
+  } else {
+    // 无透明度，转为 JPEG 以获得更好的压缩
+    compressedBuffer = await sharp(buffer)
+      .resize(800, 600) // 调整大小
+      .jpeg({ quality: 80 }) // 压缩为 JPEG 格式，质量为 80
+      .toBuffer();
+    outputExt = 'jpg';
+  }
 
-    // 生成唯一文件名
-    const timestamp = Date.now();
-    const randomString = Math.random().toString(36).substring(2, 8);
-    const fileExtension = file.name.split('.').pop();
-    const filename = `${timestamp}_${randomString}.${fileExtension}`;
-    const filePath = join(uploadDir, filename);
+   // 你想存到 COS 里的路径，按你习惯来
+    const key = `uploads/${Date.now()}-${Math.random()
+      .toString(16)
+      .slice(2)}.${outputExt}`;
 
-    // 读取文件内容
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const result = await putObjectToCOS(key, compressedBuffer);
 
-    // 使用 sharp 处理图片
-    const image = sharp(buffer);
-    const metadata = await image.metadata();
+    // 你后面小程序 / 前端可以直接用这个 URL
+    const url = `https://${BUCKET_NAME}.cos.${REGION}.myqcloud.com/${key}`;
 
-    // 保存图片
-    await writeFile(filePath, buffer);
-
-    // 构建访问 URL
-    const url = `/uploads/${filename}`;
-
-    // 保存到数据库
-    const savedImage = await prisma.image.create({
+    // 把图片存到数据库
+    await prisma.image.create({
       data: {
-        filename,
-        path: filePath,
+        key,
         url,
-        size: file.size,
-        mimeType: file.type,
-        width: metadata.width,
-        height: metadata.height,
-        description: formData.get('description') as string || undefined,
-      },
-    });
+        bucket: BUCKET_NAME || '',
+        bizType: 'comment',
+      }
+    })
+    return createJsonResponse(ResponseUtil.success({ url, key }, '上传成功'))
+    // return NextResponse.json({data:{
+    //   key,
+    //   cosLocation: result?.Location || '',
+    //   url, 
+    // }});
 
-    return NextResponse.json({
-      success: true,
-      image: {
-        id: savedImage.id,
-        filename: savedImage.filename,
-        url: savedImage.url,
-        size: savedImage.size,
-        mimeType: savedImage.mimeType,
-        width: savedImage.width,
-        height: savedImage.height,
-        description: savedImage.description,
-        createdAt: savedImage.createdAt,
-      },
-    });
-  } catch (error) {
-    console.error('Upload error:', error);
-    return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
-  }
-}
-
-export async function GET() {
-  try {
-    const images = await prisma.image.findMany({
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return NextResponse.json({
-      success: true,
-      images: images.map(image => ({
-        id: image.id,
-        filename: image.filename,
-        url: image.url,
-        size: image.size,
-        mimeType: image.mimeType,
-        width: image.width,
-        height: image.height,
-        description: image.description,
-        createdAt: image.createdAt,
-      })),
-    });
-  } catch (error) {
-    console.error('Get images error:', error);
-    return NextResponse.json({ error: 'Failed to get images' }, { status: 500 });
-  }
+    }catch (error) {
+      return NextResponse.json({ error: error?.message || '上传失败' }, { status: 500 });
+    }
 }
