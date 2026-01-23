@@ -15,8 +15,8 @@ const prisma = new PrismaClient();
 function putObjectToCOS (key:string,body:Buffer){
   return new Promise((resolve, reject) => {
     cos.putObject({
-      Bucket: BUCKET_NAME,
-      Region: REGION,
+      Bucket: BUCKET_NAME || '',
+      Region: REGION || '',
       Key: key,
       Body: body,
     }, (err:any, data:any) => {

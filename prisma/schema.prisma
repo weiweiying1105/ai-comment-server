@@ -1,6 +1,5 @@
 generator client {
   provider      = "prisma-client-js"
-  // binaryTargets = ["linux-musl-openssl-3.0.x"]
   binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
@@ -9,93 +8,70 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// 小程序用户模型
 model User {
-  id          String   @id @default(cuid())
-  openId      String   @unique // 微信小程序 openId
-  unionId     String?  @unique // 微信 unionId (可选)
-  nickName    String?  // 用户昵称
-  avatarUrl   String?  // 头像URL
-  gender      Int?     // 性别 0-未知 1-男 2-女
-  city        String?  // 城市
-  province    String?  // 省份
-  country     String?  // 国家
-  language    String?  // 语言
-  
-  // 用户设置
-  currency    String   @default("CNY") // 默认货币
-  timezone    String   @default("Asia/Shanghai") // 时区
-  
-  // 时间戳
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  lastLoginAt DateTime @default(now())
-
-  // 反向关联：用户的好评记录
-  comments    GoodComment[]
-  
-  @@map("users")
-}
-// 分类模型
-model Category {
-  id          Int           @id @default(autoincrement())
-  name        String        @unique // 分类名称
-  parentId    Int? // 父分类ID
-  keyword     String? // 关键词
-  icon        String? // 图标
-  active_icon String? // 活动图标
+  id          String        @id @default(cuid())
+  openId      String        @unique
+  unionId     String?       @unique
+  nickName    String?
+  avatarUrl   String?
+  gender      Int?
+  city        String?
+  province    String?
+  country     String?
+  language    String?
+  currency    String        @default("CNY")
+  timezone    String        @default("Asia/Shanghai")
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
-  // 被使用次数，用来描述是否热门
-  use_count   Int           @default(0)
-  // 反向关联：该分类下的好评记录
-  comments    GoodComment[] @relation(name: "CategoryToComments")
+  lastLoginAt DateTime      @default(now())
+  comments    GoodComment[]
 
-  // 高性能查询索引
+  @@map("users")
+}
+
+model Category {
+  id          Int           @id @default(autoincrement())
+  name        String        @unique
+  parentId    Int?
+  keyword     String?
+  icon        String?
+  active_icon String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  use_count   Int           @default(0)
+  comments    GoodComment[] @relation("CategoryToComments")
+
   @@index([parentId, id])
   @@index([use_count, id])
   @@index([keyword])
 }
-// 好评记录
+
 model GoodComment {
-  id            Int      @id @default(autoincrement())
-  commentId     Int      @default(autoincrement()) // 评论ID
-  category      Int      // 分类ID
-  categoryName  String   // 分类名称
-  content       String   // 内容
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  userId      String // 用户ID
-  limit       Int    // 字数限制
-   // 是否已经设置成模版
-  isTemplate Boolean @default(false)
-  // 关联分类
-  categoryCategory Category @relation(name: "CategoryToComments", fields: [category], references: [id])
-  user User @relation(fields: [userId], references: [id])
+  id               Int      @id @default(autoincrement())
+  commentId        Int      @default(autoincrement())
+  category         Int
+  categoryName     String
+  content          String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  userId           String
+  limit            Int
+  isTemplate       Boolean  @default(false)
+  categoryCategory Category @relation("CategoryToComments", fields: [category], references: [id])
+  user             User     @relation(fields: [userId], references: [id])
+
   @@index([userId, createdAt])
 }
 
-// 图片模型
 model Image {
   id        String   @id @default(uuid())
-
-  // 对外访问的完整 URL（你的小程序 / 前端用的）
   url       String
-
-  // COS 中的对象 key，例如 uploads/20260122-xxx.png
   key       String
-
-  // 业务类型：avatar / comment / banner / logo
   bizType   String
-
-  // 关联业务 ID（比如 commentId / userId，可选）
   ownerId   String?
-
-  // 所属桶，方便以后迁移或清理
   bucket    String
-
   createdAt DateTime @default(now())
 
   @@index([bizType])
-  @@index([ownerId]) 
+  @@index([ownerId])
 }
