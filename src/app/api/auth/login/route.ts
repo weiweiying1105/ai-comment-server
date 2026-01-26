@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
         // 3）签发 JWT
         const tokenPayload = {
             userId: user.id,
+            openId: user.openId,
             iat: Math.floor(Date.now() / 1000),
         }
         const expiresInConfig = process.env.JWT_EXPIRES_IN

@@ -3,22 +3,12 @@ import prisma from '@/lib/prisma'
 import { createJsonResponse, ResponseUtil } from '@/lib/response'
 import fs from 'fs/promises'
 import path from 'path'
-
+import { getCache, setCache } from '@/lib/cache'
 // 在生产环境启用 60s 缓存
-export const revalidate = 60
+const CACHE_KEY = 'categories:list'
+const CACHE_TTL_MS = 60 * 1000 * 60 * 24 * 30;// 缓存 30 天
 
 // 轻量级内存缓存（开发/Node 运行时有效）
-const CATEGORY_CACHE_TTL_MS = 30 * 1000
-const __categoryCache: Map<string, { ts: number; data: any }> = (globalThis as any).__categoryCache || new Map()
-    ; (globalThis as any).__categoryCache = __categoryCache
-const getCached = (key: string) => {
-    const v = __categoryCache.get(key)
-    if (!v) return undefined
-    return Date.now() - v.ts < CATEGORY_CACHE_TTL_MS ? v.data : undefined
-}
-const setCached = (key: string, data: any) => {
-    __categoryCache.set(key, { ts: Date.now(), data })
-}
 
 const selectFields = {
     id: true,
@@ -111,15 +101,15 @@ export async function GET(req: NextRequest) {
         const canUseSnapshot = useSnapshotFlag && !keyword && !top && !parentIdParam && frequentlyUsed !== 'true'
 
         // 缓存 key
-        const cacheKey = JSON.stringify({
-            keyword,
-            top: !!top,
-            parentId: parentIdParam ? Number(parentIdParam) : null,
-            frequentlyUsed: frequentlyUsed === 'true',
-            limit,
-            snapshot: !!canUseSnapshot,
-        })
-        const cached = getCached(cacheKey)
+        // const cacheKey = JSON.stringify({
+        //     keyword,
+        //     top: !!top,
+        //     parentId: parentIdParam ? Number(parentIdParam) : null,
+        //     frequentlyUsed: frequentlyUsed === 'true',
+        //     limit,
+        //     snapshot: !!canUseSnapshot,
+        // })
+        const cached = getCache(CACHE_KEY)
         if (cached) {
             const msg = frequentlyUsed === 'true'
                 ? '常用分类查询成功（缓存）'
@@ -150,7 +140,7 @@ export async function GET(req: NextRequest) {
                 } catch (_) { }
             }
             if (snapshotData) {
-                setCached(cacheKey, snapshotData)
+                setCache(CACHE_KEY, snapshotData, CACHE_TTL_MS)
                 const tEnd = Date.now()
                 console.log(`[API/category] snapshot-return total=${tEnd - t0}ms`)
                 return createJsonResponse(
@@ -233,7 +223,7 @@ export async function GET(req: NextRequest) {
         // 如果存在 parentId/顶级/keyword 过滤或请求的是常用分类，则直接返回扁平列表
         if (keyword || top || parentIdParam || frequentlyUsed === 'true') {
             const msg = frequentlyUsed === 'true' ? '常用分类查询成功' : '分类查询成功（含keyword、icon、active_icon）'
-            setCached(cacheKey, categoriesFlatSorted)
+            setCache(CACHE_KEY, categoriesFlatSorted, CACHE_TTL_MS)
             const tEnd = Date.now()
             console.log(`[API/category] flat-return total=${tEnd - t0}ms`)
             return createJsonResponse(
@@ -245,11 +235,10 @@ export async function GET(req: NextRequest) {
                 }
             )
         }
-
         const tree = buildCategoryTree(categoriesEnriched as any)
         const tTree = Date.now()
         console.log(`[API/category] buildTree=${tTree - tQuery}ms`)
-        setCached(cacheKey, tree)
+        setCache(CACHE_KEY, tree, CACHE_TTL_MS)
         const tEnd = Date.now()
         console.log(`[API/category] tree-return total=${tEnd - t0}ms`)
         return createJsonResponse(

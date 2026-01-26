@@ -52,7 +52,7 @@ export async function recognizeDishFromBuffer(
   const body = qs.stringify({
     image: imgBase64,
     top_num: 3, // 返回前 3 个结果
-    filter_threshold: 0.8, 
+    filter_threshold: 0.9, // 置信度阈值，低于此值的结果会被过滤掉, 建议 0.8-0.9
   })
 
   const resp = await fetch(
