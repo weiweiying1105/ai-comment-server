@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 先验证用户登录
-    const user = verifyToken(req)
+    const user = await verifyToken(req)
     if (!user) {
       return createJsonResponse(ResponseUtil.error('用户未登录'), { status: 401 })
     }
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     await prisma.user.update({
       where: { id: user.userId  },
       data: {
-        mobile:phoneNumber,
+        // mobile:phoneNumber,
       }
     })
   } catch (error: any) {
