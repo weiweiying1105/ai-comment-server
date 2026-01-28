@@ -78,8 +78,9 @@ const ImageUploadPage: React.FC = () => {
   // 上传图片
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const fileInput = e.currentTarget.elements.namedItem('file') as HTMLInputElement;
+    const formData = new FormData(e.currentTarget as HTMLFormElement);
+   // 修改后
+const fileInput = (e.currentTarget as HTMLFormElement).elements.namedItem('file') as HTMLInputElement;
     
     if (!fileInput?.files?.[0]) {
       setError('请选择文件');
