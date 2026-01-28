@@ -102,3 +102,25 @@ export async function DELETE(req: NextRequest) {
     )
   }
 }
+
+// 批量修改分类
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const { ids, parentId } = body || {}
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return createJsonResponse(ResponseUtil.error('ids 必须是非空数组'), { status: 400 })
+    }
+    // 批量更新分类的 parentId
+    await prisma.category.updateMany({
+      where: { id: { in: ids } },
+      data: { parentId: typeof parentId === 'number' ? parentId : null }
+    })
+    return createJsonResponse(ResponseUtil.success({ ids, parentId }, '批量修改成功'))
+  } catch (error: any) {
+    return createJsonResponse(
+      ResponseUtil.error(`批量修改失败: ${error?.message || String(error)}`),
+      { status: 500 }
+    )
+  }
+}

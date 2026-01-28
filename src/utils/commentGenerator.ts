@@ -54,7 +54,7 @@ ${toneDesc}
 export async function generateComment(params: GenerateCommentParams): Promise<GenerateCommentResult> {
     try{
     const { userId, categoryId, categoryName, words, reference, tone } = params;
-    
+    console.log('reference', reference)
     // 验证参数
     if (!userId || !categoryId || !categoryName || !words) {
         throw new Error('参数错误');

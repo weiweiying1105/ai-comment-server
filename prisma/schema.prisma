@@ -12,6 +12,7 @@ model User {
   id          String        @id @default(cuid())
   openId      String        @unique
   unionId     String?       @unique
+  mobile      String?       @unique
   nickName    String?
   avatarUrl   String?
   gender      Int?

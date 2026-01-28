@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     // 有透明度，保持为 PNG
     compressedBuffer = await sharp(buffer)
       .resize(800, 600) // 调整大小
-      .png({ quality: 80 }) // 压缩为 PNG 格式
+      .png({ quality: 70 }) // 压缩为 PNG 格式
       .toBuffer();
     outputExt = 'png';
   } else {
