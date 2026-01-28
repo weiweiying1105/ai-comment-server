@@ -109,7 +109,7 @@ export async function generateComment(params: GenerateCommentParams): Promise<Ge
         
         // 竞态条件：谁先完成就用谁的结果
         resp = await Promise.race([fetchPromise, timeoutPromise]);
-    } catch (error) {
+    } catch (error: any) {
         clearTimeout(timeoutId);
         if (error.name === 'AbortError' || error.message === 'API请求超时，请稍后重试') {
             throw new Error('API请求超时，请稍后重试');
