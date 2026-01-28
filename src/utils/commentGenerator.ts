@@ -80,7 +80,7 @@ export async function generateComment(params: GenerateCommentParams): Promise<Ge
             },
             { role: 'user', content: buildPrompt(categoryName, targetWords, reference ?? '无', tone ?? '正常') },
         ],
-        temperature: 0.85,
+        temperature: 0.85, // 控制生成的随机性，0.85 是一个比较平衡的值
         max_tokens: Math.min(2048, Math.max(128, Math.round(targetWords * 2))),
     };
     

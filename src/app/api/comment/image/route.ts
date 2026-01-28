@@ -71,9 +71,6 @@ export async function POST(request: NextRequest) {
           console.error("调用百度菜品识别失败：", e);
         }
 
-        // 如果以后有代理能访问 OpenAI，可以顺便做一个环境分析：
-        // const envAnalysis = await analyzeImage(imageUrl);
-
         return {
           image: imageUrl,
           dishName,
