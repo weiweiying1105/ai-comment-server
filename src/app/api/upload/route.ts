@@ -91,6 +91,6 @@ export async function POST(req: NextRequest) {
     // }});
 
     }catch (error) {
-      return NextResponse.json({ error: error?.message || '上传失败' }, { status: 500 });
+      return NextResponse.json({ error: (error as Error)?.message || '上传失败' }, { status: 500 });
     }
 }
