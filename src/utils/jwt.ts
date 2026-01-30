@@ -95,7 +95,6 @@ export function generateToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): string 
 export function refreshToken(oldToken: string): string | null {
     try {
         const decoded = jwt.verify(oldToken, JWT_SECRET) as JWTPayload
-
         // 生成新token
         return generateToken({
             userId: decoded.userId,

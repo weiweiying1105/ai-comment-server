@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import sharp from 'sharp'; // 这是一个 Node.js 库，用于处理图片，这里用于压缩图片
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import cos from '@/lib/cos';
 import { createJsonResponse, ResponseUtil } from '@/lib/response';
 
@@ -8,8 +8,6 @@ import { createJsonResponse, ResponseUtil } from '@/lib/response';
 export const runtime = 'nodejs';
 const BUCKET_NAME = process.env.COS_BUCKET;
 const REGION = process.env.COS_REGION;
-
-const prisma = new PrismaClient();
 
 
 function putObjectToCOS (key:string,body:Buffer){
