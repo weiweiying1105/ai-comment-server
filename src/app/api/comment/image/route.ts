@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     ) {
       return createJsonResponse(
         ResponseUtil.error("图片URL或关键词不能为空"),
-        { status: 400 }
+        { status: 200 }
       );
     }
 
@@ -88,8 +88,8 @@ export async function POST(request: NextRequest) {
     // 检查是否识别到菜品
     if (dishes.length == 0 || dishes.every(dish => dish === "非菜")) {
       return createJsonResponse(
-        ResponseUtil.error("未识别到菜品，请上传包含菜品的图片"),
-        { status: 400 }
+        ResponseUtil.error("未识别到菜品",501),
+        { status: 200 }
       );
     }
     }

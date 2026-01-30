@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   const formData = await req.formData();
   const file = formData.get('file') as File;
   if (!file || !(file instanceof File)) {
-    return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
+    return NextResponse.json({ error: 'No file uploaded' }, { status: 200 });
   }
 
   // 读取内容
