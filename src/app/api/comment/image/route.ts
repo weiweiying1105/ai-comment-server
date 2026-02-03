@@ -2,13 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createJsonResponse, ResponseUtil } from "@/lib/response";
 import { verifyToken } from "@/utils/jwt";
 import prisma from "@/lib/prisma";
-import { recognizeDishFromUrl, recognizeDishFromBuffer } from "@/utils/baiduDish";
-import { generateComment } from "@/utils/commentGenerator";
-import { getCache, setCache } from '@/lib/cache'
-// 在生产环境启用 60s 缓存
-const CACHE_KEY = 'categories:list'
-const CACHE_TTL_MS = 60 * 1000 * 60 * 24 * 30;// 缓存 30 天
-
+import { recognizeDishFromBuffer } from "@/utils/baiduDish";
 
 // 如果你希望这个接口支持频繁调用，可以加上这一句
 export const dynamic = "force-dynamic";
@@ -24,126 +18,137 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const dbUser = await prisma.user.findUnique({ where: { id: user.userId } });
-    if (!dbUser) {
-      return createJsonResponse(
-        ResponseUtil.error("用户不存在或已失效，请重新登录"),
-        { status: 401 }
-      );
+    // 验证用户（添加错误处理）
+    try {
+      const dbUser = await prisma.user.findUnique({ where: { id: user.userId } });
+      if (!dbUser) {
+        return createJsonResponse(
+          ResponseUtil.error("用户不存在或已失效，请重新登录"),
+          { status: 401 }
+        );
+      }
+    } catch (dbError) {
+      console.error("数据库查询失败（用户验证）:", dbError);
+      // 数据库连接失败时，仍然允许继续处理，因为菜品识别是核心功能
+      console.warn("数据库连接失败，跳过用户验证，继续处理图片");
     }
-
 
     // 2. 解析参数
-    //   你原来的注释：words: limit, tone: toneLabel，
-    //   这里先只用 images + keyword，如果后面需要可以再加 words / tone
-    const body = await request.json();
-    const { images, keyword, words = 100, tone = "正常" } = body as {
-      images?: string[];
-      keyword?: string;
-      words?: number;
-      tone?: string;
-    };
+    const formData = await request.formData();
+    const files = formData.getAll('files') as File[];
+    const keyword = formData.get('keyword') as string || '';
+    const words = parseInt(formData.get('words') as string) || 100;
+    const tone = formData.get('tone') as string || "正常";
 
-    if (
-      (!images || !Array.isArray(images) || images.length === 0) &&
-      (!keyword || typeof keyword !== "string" || keyword.trim() === "")
-    ) {
+    if (!files || files.length === 0) {
       return createJsonResponse(
-        ResponseUtil.error("图片URL或关键词不能为空"),
+        ResponseUtil.error("图片不能为空"),
         { status: 200 }
       );
     }
 
-    // 3. 处理图片：用百度菜品识别识别出菜名
-    let imageResults: {
-      image: string;
-      dishName: string | null;
-      // envAnalysis?: string | null; // 如果以后要用 analyzeImage，可以开这个字段
-    }[] = [];
-    let dishes: string[] = [];
-    if (images && Array.isArray(images) && images.length > 0) {
-      const imagePromises = images.map(async (imageUrl: string) => {
-        // 识别菜名（百度菜品识别）
-        let dishName: string | null = null;
-        try {
-          dishName = await recognizeDishFromUrl(imageUrl);
-        } catch (e) {
-          console.error("调用百度菜品识别失败：", e);
-        }
+    // 3. 处理图片：先识别菜品，再异步上传
+    let recognizedDishes: string[] = [];
+    let filesToUpload: Array<{ file: File; buffer: Buffer }> = [];
 
-        return {
-          image: imageUrl,
-          dishName,
-          // envAnalysis,
-        };
-      });
+    for (const file of files) {
+      if (!(file instanceof File)) continue;
 
-      imageResults = await Promise.all(imagePromises);
-      console.log("图片菜品识别结果:", imageResults);
-       dishes = imageResults
-      .map((item) => item.dishName)
-      .filter((name): name is string => !!name);
-    console.log("汇总识别到的菜名:", dishes);
-    
-    // 检查是否识别到菜品
-    if (dishes.length == 0 || dishes.every(dish => dish === "非菜")) {
-      return createJsonResponse(
-        ResponseUtil.error("未识别到菜品",501),
-        { status: 200 }
-      );
-    }
+      // 读取文件内容
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      // 先识别菜品
+      let dishName = await recognizeDishFromBuffer(buffer);
+      console.log("识别菜品结果:", dishName);
+
+      if (!dishName || dishName === "非菜") {
+        continue;
+      }
+
+      recognizedDishes.push(dishName);
+      filesToUpload.push({ file, buffer });
     }
 
-    // 4. 汇总识别到的菜名（便于前端展示或后续生成好评用）
-    
-    // 查询美食分类的实际ID
-    const foodCategory = await prisma.category.findFirst({
-      where: {
-        OR: [
-          { name: "美食" },
-          { keyword: "food" }
-        ]
-      },
-      select: { id: true, name: true }
-    });
-    
-    if (!foodCategory) {
-      console.error("未找到美食分类");
-      return createJsonResponse(
-        ResponseUtil.error("系统配置错误：未找到美食分类"),
-        { status: 500 }
-      );
-    }
-    
-    const { id: categoryId, name: categoryName } = foodCategory;
-    console.log("使用美食分类:", { id: categoryId, name: categoryName });
+    // 4. 异步上传识别到菜品的图片
+    if (filesToUpload.length > 0) {
+      // 在后台异步上传，不阻塞响应
+      (async () => {
+        for (const { file, buffer } of filesToUpload) {
+          try {
+            // 创建 FormData 调用上传接口
+            const uploadFormData = new FormData();
+            uploadFormData.append('file', new Blob([buffer], { type: file.type }), file.name);
 
-    // 7. 生成好评
-    let generatedComment = null;
-    
-    if (dishes.length > 0 || keyword) {
-        try {
-            const result = await generateComment({
-                userId: user.userId,
-                categoryId: categoryId,
-                categoryName: categoryName,
-                words: words,
-                reference: dishes.length > 0 ? `推荐菜品：${dishes.join('、')}、关键词：${keyword}` : `关键词：${keyword}`,
-                tone: tone
+            // 调用上传接口
+            const uploadResponse = await fetch(`${process.env.BASE_URL || 'http://localhost:3000'}/api/upload`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${request.headers.get('authorization')?.replace('Bearer ', '') || ''}`
+              },
+              body: uploadFormData
             });
-            generatedComment = result.content;
-        } catch (error) {
-            console.error("生成评论失败:", error);
+
+            if (uploadResponse.ok) {
+              const uploadData = await uploadResponse.json();
+              if (uploadData.code === 200 && uploadData.data && uploadData.data.url) {
+                console.log("图片上传成功:", uploadData.data.url);
+                // 这里可以将上传结果存储起来，供后续使用
+              }
+            } else {
+              console.error("调用上传接口失败:", uploadResponse.status, await uploadResponse.text());
+            }
+
+          } catch (uploadError) {
+            console.error("上传图片失败:", uploadError);
+          }
         }
+      })();
+    }
+
+    // 检查是否识别到菜品
+    if (recognizedDishes.length === 0) {
+      return createJsonResponse(
+        ResponseUtil.error("未识别到菜品", 501),
+        { status: 200 }
+      );
+    }
+
+    console.log("汇总识别到的菜名:", recognizedDishes);
+
+    // 4. 查询美食分类的实际ID（添加错误处理）
+    let categoryId = 1;
+    let categoryName = "美食";
+
+    try {
+      const foodCategory = await prisma.category.findFirst({
+        where: {
+          OR: [
+            { name: "美食" },
+            { keyword: "food" }
+          ]
+        },
+        select: { id: true, name: true }
+      });
+      
+      if (foodCategory) {
+        categoryId = foodCategory.id;
+        categoryName = foodCategory.name;
+        console.log("使用美食分类:", { id: categoryId, name: categoryName });
+      } else {
+        console.warn("未找到美食分类，使用默认值");
+      }
+    } catch (dbError) {
+      console.error("数据库查询失败（分类查询）:", dbError);
+      console.warn("数据库连接失败，使用默认分类值");
     }
 
     return createJsonResponse(
       ResponseUtil.success(
         { 
-          dishes,
+          dishes: recognizedDishes,
           categoryId,
-          categoryName,
-          comment: generatedComment
+          categoryName
         },
         "图片分析成功"
       )

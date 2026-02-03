@@ -21,13 +21,13 @@ export async function POST(request: NextRequest) {
             );
         }
         // 额外保证：token对应的用户必须存在（避免数据库重置后token失效导致外键错误）
-        const dbUser = await prisma.user.findUnique({ where: { id: user.userId } })
-        if (!dbUser) {
-            return createJsonResponse(
-                ResponseUtil.error('用户不存在或已失效，请重新登录'),
-                { status: 401 }
-            );
-        }
+        // const dbUser = await prisma.user.findUnique({ where: { id: user.userId } })
+        // if (!dbUser) {
+        //     return createJsonResponse(
+        //         ResponseUtil.error('用户不存在或已失效，请重新登录'),
+        //         { status: 401 }
+        //     );
+        // }
         /**
          * 生成评论:
          * @param categoryName 分类名称
