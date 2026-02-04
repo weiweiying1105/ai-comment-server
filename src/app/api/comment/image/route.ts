@@ -78,8 +78,9 @@ export async function POST(request: NextRequest) {
           try {
             // 创建 FormData 调用上传接口
             const uploadFormData = new FormData();
-            uploadFormData.append('file', new Blob([buffer], { type: file.type }), file.name);
-
+           // 将Buffer转换为普通数组
+// 将Buffer转换为Uint8Array
+uploadFormData.append('file', new Blob([new Uint8Array(buffer)], { type: file.type }), file.name);
             // 调用上传接口
             const uploadResponse = await fetch(`${process.env.BASE_URL || 'http://localhost:3000'}/api/upload`, {
               method: 'POST',
