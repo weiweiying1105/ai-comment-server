@@ -1,6 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { createJsonResponse, ResponseUtil } from '@/lib/response';
-import { NextRequest, NextResponse } from 'next/server';
+import { createJsonResponse } from '@/lib/response';
 
 
 const prisma = new PrismaClient();
