@@ -43,7 +43,7 @@ export async function withAuth(handler: (request: AuthenticatedRequest) => Promi
     }
 }
 
-// 验证JWT token
+// 验证JWT token（严格，过期视为无效）
 export async function verifyToken(requestOrToken: NextRequest | string): Promise<JWTPayload | null> {
     try {
         let token: string | null = null
@@ -79,6 +79,17 @@ export async function verifyToken(requestOrToken: NextRequest | string): Promise
     }
 }
 
+// 验证签名并解码（忽略过期，仅用于 refresh 流程）
+export function verifyTokenAllowExpired(token: string): JWTPayload | null {
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true }) as JWTPayload
+        return decoded
+    } catch (error) {
+        console.error('Token签名验证失败（忽略过期）:', error)
+        return null
+    }
+}
+
 // 生成新的token
 export function generateToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): string {
     const options: SignOptions = {
@@ -91,17 +102,12 @@ export function generateToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): string 
     )
 }
 
-// 刷新token
+// 刷新token（忽略过期，仅校验签名有效性）
 export function refreshToken(oldToken: string): string | null {
-    try {
-        const decoded = jwt.verify(oldToken, JWT_SECRET) as JWTPayload
-        // 生成新token
-        return generateToken({
-            userId: decoded.userId,
-            openId: decoded.openId
-        })
-
-    } catch {
-        return null
-    }
+    const decoded = verifyTokenAllowExpired(oldToken)
+    if (!decoded) return null
+    return generateToken({
+        userId: decoded.userId,
+        openId: decoded.openId
+    })
 }
