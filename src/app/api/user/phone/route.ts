@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     // 先验证用户登录
     const user = await verifyToken(req)
     if (!user) {
-      return createJsonResponse(ResponseUtil.error('用户未登录'), { status: 401 })
+      return createJsonResponse(ResponseUtil.success({ code: 401, message: '用户未登录' }))
     }
     // 调用微信小程序 API 交换手机号
     const accessToken = await getWeChatAccessToken()
@@ -35,11 +35,11 @@ export async function POST(req: NextRequest) {
     if (!data.phone_info) {
       throw new Error('获取手机号失败：' + JSON.stringify(data))
     }
-      const phoneInfo = data.phone_info
+    const phoneInfo = data.phone_info
     const phoneNumber = phoneInfo.phoneNumber as string
     // 绑定手机号
     await prisma.user.update({
-      where: { id: user.userId  },
+      where: { id: user.userId },
       data: {
         // mobile:phoneNumber,
       }

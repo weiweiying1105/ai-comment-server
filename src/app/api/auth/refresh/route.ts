@@ -6,11 +6,10 @@ export async function POST(request: NextRequest) {
   try {
     // 验证当前 token
     const user = await verifyToken(request);
-    
+
     if (!user) {
       return createJsonResponse(
-        ResponseUtil.error("未授权访问"),
-        { status: 401 }
+        ResponseUtil.success({ code: 401, message: "未授权访问" }),
       );
     }
 
@@ -34,11 +33,11 @@ export async function POST(request: NextRequest) {
 
     // 生成新 token
     const newToken = refreshToken(token);
-    
+
     if (!newToken) {
       return createJsonResponse(
-        ResponseUtil.error("Token 无效或已过期"),
-        { status: 401 }
+        ResponseUtil.success({ code: 401, message: "Token 无效或已过期" }),
+
       );
     }
 

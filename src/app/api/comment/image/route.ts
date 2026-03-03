@@ -13,8 +13,7 @@ export async function POST(request: NextRequest) {
     const user = await verifyToken(request);
     if (!user) {
       return createJsonResponse(
-        ResponseUtil.error("未授权访问"),
-        { status: 401 }
+        ResponseUtil.success({ code: 401, message: "未授权访问" }),
       );
     }
 
@@ -23,8 +22,7 @@ export async function POST(request: NextRequest) {
       const dbUser = await prisma.user.findUnique({ where: { id: user.userId } });
       if (!dbUser) {
         return createJsonResponse(
-          ResponseUtil.error("用户不存在或已失效，请重新登录"),
-          { status: 401 }
+          ResponseUtil.success({ code: 401, message: "用户不存在或已失效，请重新登录" }),
         );
       }
     } catch (dbError) {
@@ -78,7 +76,7 @@ export async function POST(request: NextRequest) {
           try {
             // 创建 FormData 调用上传接口
             const uploadFormData = new FormData();
-           // 将Buffer转换为普通数组
+            // 将Buffer转换为普通数组
             // 将Buffer转换为Uint8Array
             uploadFormData.append('file', new Blob([new Uint8Array(buffer)], { type: file.type }), file.name);
             // 调用上传接口
@@ -131,7 +129,7 @@ export async function POST(request: NextRequest) {
         },
         select: { id: true, name: true }
       });
-      
+
       if (foodCategory) {
         categoryId = foodCategory.id;
         categoryName = foodCategory.name;
@@ -146,7 +144,7 @@ export async function POST(request: NextRequest) {
 
     return createJsonResponse(
       ResponseUtil.success(
-        { 
+        {
           dishes: recognizedDishes,
           categoryId,
           categoryName

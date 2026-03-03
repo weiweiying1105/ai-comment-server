@@ -16,8 +16,8 @@ export async function POST(request: NextRequest) {
         const user = await verifyToken(request);
         if (!user) {
             return createJsonResponse(
-                ResponseUtil.error('未授权访问'),
-                { status: 401 }
+                ResponseUtil.success({ code: 401, message: '未授权访问' }),
+
             );
         }
         // 额外保证：token对应的用户必须存在（避免数据库重置后token失效导致外键错误）
@@ -78,15 +78,14 @@ export async function GET(request: NextRequest) {
         const user = await verifyToken(request);
         if (!user) {
             return createJsonResponse(
-                ResponseUtil.error('未授权访问'),
-                { status: 401 }
+                ResponseUtil.success({ code: 401, message: '未授权访问' }),
+
             );
         }
         const dbUser = await prisma.user.findUnique({ where: { id: user.userId } })
         if (!dbUser) {
             return createJsonResponse(
-                ResponseUtil.error('用户不存在或已失效，请重新登录'),
-                { status: 401 }
+                ResponseUtil.success({ code: 401, message: '用户不存在或已失效，请重新登录' }),
             );
         }
         const template = request.nextUrl.searchParams.get('template')
@@ -128,8 +127,7 @@ export async function DELETE(request: NextRequest) {
         const user = await verifyToken(request);
         if (!user) {
             return createJsonResponse(
-                ResponseUtil.error('未授权访问'),
-                { status: 401 }
+                ResponseUtil.success({ code: 401, message: '未授权访问' }),
             );
         }
         const { id } = await request.json();
@@ -164,15 +162,13 @@ export async function PUT(request: NextRequest) {
         const user = await verifyToken(request);
         if (!user) {
             return createJsonResponse(
-                ResponseUtil.error('未授权访问'),
-                { status: 401 }
+                ResponseUtil.success({ code: 401, message: '未授权访问' }),
             );
         }
         const dbUser = await prisma.user.findUnique({ where: { id: user.userId } })
         if (!dbUser) {
             return createJsonResponse(
-                ResponseUtil.error('用户不存在或已失效，请重新登录'),
-                { status: 401 }
+                ResponseUtil.success({ code: 401, message: '用户不存在或已失效，请重新登录' }),
             );
         }
         const { id, isTemplate } = await request.json();
