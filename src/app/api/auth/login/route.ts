@@ -12,6 +12,8 @@ const WECHAT_CONFIG = {
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || '';
+const ALLOW_DEV_LOGIN = process.env.ALLOW_DEV_LOGIN === '1';
+
 interface WechatLoginResponse {
     openid: string
     session_key: string
@@ -28,7 +30,46 @@ interface LoginRequest {
 
 export async function POST(request: NextRequest) {
     try {
-        // 校验服务端必要配置
+        // 从请求体或查询参数获取 code
+        let body: LoginRequest = { code: '' };
+        let code: string | null = null;
+        try {
+            body = await request.json();
+            code = body.code;
+        } catch (error) {
+            code = request.nextUrl.searchParams.get('code')
+        }
+
+        // 本地/开发模式下允许绕过微信校验
+        if (ALLOW_DEV_LOGIN) {
+            const devOpenId = `dev_${(code && typeof code === 'string' && code.trim()) ? code.trim() : Math.random().toString(36).slice(2)}`
+            let user = await prisma.user.findUnique({ where: { openId: devOpenId } })
+            if (!user) {
+                user = await prisma.user.create({ data: { openId: devOpenId } })
+            } else {
+                user = await prisma.user.update({ where: { openId: devOpenId }, data: { lastLoginAt: new Date() } })
+            }
+            const tokenPayload = {
+                userId: user.id,
+                openId: user.openId,
+                iat: Math.floor(Date.now() / 1000),
+            }
+            const expiresInConfig = process.env.JWT_EXPIRES_IN
+            const expiresIn: number | string = expiresInConfig && /^\d+$/.test(expiresInConfig)
+                ? Number(expiresInConfig)
+                : (expiresInConfig || '7d')
+            const signOptions: SignOptions = { expiresIn: expiresIn as any }
+            const token = jwt.sign(tokenPayload, JWT_SECRET as Secret, signOptions as any)
+            return createJsonResponse(
+                ResponseUtil.success({
+                    token,
+                    userId: user.id,
+                    userInfo: { id: user.id, nickName: user.nickName, avatarUrl: user.avatarUrl }
+                }, '登录成功(DEV)')
+            )
+        }
+
+        // 生产/真实小程序：校验服务端必要配置
         if (!WECHAT_CONFIG.appid || !WECHAT_CONFIG.appSecret) {
             return createJsonResponse(
                 ResponseUtil.error('服务端未配置微信AppID或AppSecret'),
@@ -40,16 +81,6 @@ export async function POST(request: NextRequest) {
                 ResponseUtil.error('服务端未配置JWT_SECRET'),
                 { status: 500 }
             )
-        }
-
-        // 从请求体或查询参数获取 code
-        let body: LoginRequest = { code: '' };
-        let code: string | null = null;
-        try {
-            body = await request.json();
-            code = body.code;
-        } catch (error) {
-            code = request.nextUrl.searchParams.get('code')
         }
         if (!code) {
             return createJsonResponse(ResponseUtil.error('code不能为空'), { status: 400 })
