@@ -8,7 +8,7 @@ const allowWithoutToken = process.env.ADMIN_MODE === '1'
 async function ensureAuth(req: NextRequest) {
   const user = await verifyToken(req)
   if (!user && !allowWithoutToken) {
-    return createJsonResponse(ResponseUtil.success({ code: 401, message: '未授权访问' }))
+    return createJsonResponse(ResponseUtil.error('未授权访问', 401))
   }
   return null
 }

@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     // 先验证用户登录
     const user = await verifyToken(req)
     if (!user) {
-      return createJsonResponse(ResponseUtil.success({ code: 401, message: '用户未登录' }))
+      return createJsonResponse(ResponseUtil.error('未授权访问', 401))
     }
     // 调用微信小程序 API 交换手机号
     const accessToken = await getWeChatAccessToken()

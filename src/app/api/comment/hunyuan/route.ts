@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     const user = await verifyToken(request);
     if (!user) {
       return createJsonResponse(
-        ResponseUtil.success({ code: 401, message: "未授权访问" }),
+        ResponseUtil.error("未授权访问", 401),
       );
     }
 
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     });
     if (!dbUser) {
       return createJsonResponse(
-        ResponseUtil.success({ code: 401, message: "用户不存在或已失效，请重新登录" }),
+        ResponseUtil.error("用户不存在或已失效，请重新登录", 401),
       );
     }
 

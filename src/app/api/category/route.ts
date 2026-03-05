@@ -174,12 +174,47 @@ export async function GET(req: NextRequest) {
 
         const take = frequentlyUsed === 'true' && typeof limit === 'number' ? Math.max(1, Math.min(limit, 200)) : undefined
 
-        const categories = await prisma.category.findMany({
-            where,
-            select: selectFields,
-            orderBy,
-            ...(take ? { take } : {})
-        })
+        // ---- 数据库查询，失败时降级使用快照（仅无筛选条件时） ----
+        let categories: any[] | null = null
+        try {
+            categories = await prisma.category.findMany({
+                where,
+                select: selectFields,
+                orderBy,
+                ...(take ? { take } : {})
+            }) as any[]
+        } catch (dbErr: any) {
+            console.error('[API/category] DB query failed:', dbErr?.message || dbErr)
+            const allowDegrade = !keyword && !top && !parentIdParam && frequentlyUsed !== 'true'
+            if (allowDegrade) {
+                const candidates = [
+                    path.resolve(process.cwd(), 'public', 'category-snapshot.json'),
+                    path.resolve(process.cwd(), 'src', 'data', 'category-snapshot.json'),
+                ]
+                for (const p of candidates) {
+                    try {
+                        const buf = await fs.readFile(p, 'utf-8')
+                        const snapshotData = JSON.parse(buf)
+                        setCache(CACHE_KEY, snapshotData, CACHE_TTL_MS)
+                        const tEnd = Date.now()
+                        console.log(`[API/category] degraded-snapshot-return total=${tEnd - t0}ms`)
+                        return createJsonResponse(
+                            ResponseUtil.success(snapshotData, '分类快照返回（降级）'),
+                            {
+                                headers: {
+                                    'Cache-Control': 's-maxage=60, stale-while-revalidate=300'
+                                }
+                            }
+                        )
+                    } catch (_) { }
+                }
+            }
+            // 不满足降级条件或快照读取失败
+            return createJsonResponse(
+                ResponseUtil.error(`分类查询失败: ${dbErr?.message || String(dbErr)}`),
+                { status: 500 }
+            )
+        }
         const tQuery = Date.now()
         console.log(`[API/category] query=${tQuery - t0}ms, rows=${Array.isArray(categories) ? categories.length : 0}`)
 
